@@ -1,4 +1,4 @@
-module github.com/TicketsBot-cloud/database
+module github.com/noagonzale38/database
 
 go 1.22
 
