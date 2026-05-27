@@ -18,6 +18,7 @@ type Database struct {
 	ArchiveMessages                *ArchiveMessages
 	AutoClose                      *AutoCloseTable
 	AutoCloseExclude               *AutoCloseExclude
+	AutoCloseWarnings              *AutoCloseWarnings
 	Blacklist                      *Blacklist
 	BotStaff                       *BotStaff
 	CategoryUpdateQueue            *CategoryUpdateQueue
@@ -118,6 +119,7 @@ func NewDatabase(pool *pgxpool.Pool) *Database {
 		ArchiveMessages:                newArchiveMessages(pool),
 		AutoClose:                      newAutoCloseTable(pool),
 		AutoCloseExclude:               newAutoCloseExclude(pool),
+		AutoCloseWarnings:              newAutoCloseWarnings(pool),
 		Blacklist:                      newBlacklist(pool),
 		BotStaff:                       newBotStaff(pool),
 		CategoryUpdateQueue:            newCategoryUpdateQueueTable(pool),
@@ -308,6 +310,7 @@ func (d *Database) CreateTables(ctx context.Context, pool *pgxpool.Pool) {
 		d.TicketLastMessage,   // Must be created after Tickets table
 		d.Participants,        // Must be created after Tickets table
 		d.AutoCloseExclude,    // Must be created after Tickets table
+		d.AutoCloseWarnings,   // Must be created after Tickets table
 		d.CloseReason,         // Must be created after Tickets table
 		d.CloseRequest,        // Must be created after Tickets table
 		d.ServiceRatings,      // Must be created after Tickets table

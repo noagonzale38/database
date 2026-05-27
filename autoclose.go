@@ -2,9 +2,10 @@ package database
 
 import (
 	"context"
+	"time"
+
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"time"
 )
 
 type AutoCloseTable struct {
@@ -12,10 +13,13 @@ type AutoCloseTable struct {
 }
 
 type AutoCloseSettings struct {
-	Enabled                 bool           `json:"enabled"`
-	SinceOpenWithNoResponse *time.Duration `json:"since_open_with_no_response"`
-	SinceLastMessage        *time.Duration `json:"since_last_message"`
-	OnUserLeave             *bool          `json:"on_user_leave"`
+	Enabled                        bool           `json:"enabled"`
+	SinceOpenWithNoResponse        *time.Duration `json:"since_open_with_no_response"`
+	SinceLastMessage               *time.Duration `json:"since_last_message"`
+	OnUserLeave                    *bool          `json:"on_user_leave"`
+	WarningSinceOpenWithNoResponse *time.Duration `json:"warning_since_open_with_no_response"`
+	WarningSinceLastMessage        *time.Duration `json:"warning_since_last_message"`
+	WarningMessage                 *string        `json:"warning_message"`
 }
 
 func newAutoCloseTable(db *pgxpool.Pool) *AutoCloseTable {
@@ -32,14 +36,40 @@ CREATE TABLE IF NOT EXISTS auto_close(
 	"since_open_with_no_response" interval,
 	"since_last_message" interval,
 	"on_user_leave" bool,
+	"warning_since_open_with_no_response" interval,
+	"warning_since_last_message" interval,
+	"warning_message" text,
 	PRIMARY KEY("guild_id")
 );
+
+ALTER TABLE auto_close
+	ADD COLUMN IF NOT EXISTS "warning_since_open_with_no_response" interval,
+	ADD COLUMN IF NOT EXISTS "warning_since_last_message" interval,
+	ADD COLUMN IF NOT EXISTS "warning_message" text;
 `
 }
 
 func (a *AutoCloseTable) Get(ctx context.Context, guildId uint64) (settings AutoCloseSettings, e error) {
-	query := `SELECT "enabled", "since_open_with_no_response", "since_last_message", "on_user_leave" FROM auto_close WHERE "guild_id" = $1;`
-	if err := a.QueryRow(ctx, query, guildId).Scan(&settings.Enabled, &settings.SinceOpenWithNoResponse, &settings.SinceLastMessage, &settings.OnUserLeave); err != nil && err != pgx.ErrNoRows { // defaults to nil if no rows
+	query := `
+SELECT
+	"enabled",
+	"since_open_with_no_response",
+	"since_last_message",
+	"on_user_leave",
+	"warning_since_open_with_no_response",
+	"warning_since_last_message",
+	"warning_message"
+FROM auto_close
+WHERE "guild_id" = $1;`
+	if err := a.QueryRow(ctx, query, guildId).Scan(
+		&settings.Enabled,
+		&settings.SinceOpenWithNoResponse,
+		&settings.SinceLastMessage,
+		&settings.OnUserLeave,
+		&settings.WarningSinceOpenWithNoResponse,
+		&settings.WarningSinceLastMessage,
+		&settings.WarningMessage,
+	); err != nil && err != pgx.ErrNoRows { // defaults to nil if no rows
 		e = err
 	}
 
@@ -49,25 +79,52 @@ func (a *AutoCloseTable) Get(ctx context.Context, guildId uint64) (settings Auto
 func (a *AutoCloseTable) Set(ctx context.Context, guildId uint64, settings AutoCloseSettings) (err error) {
 	query := `
 INSERT INTO
-	auto_close("guild_id", "enabled", "since_open_with_no_response", "since_last_message", "on_user_leave")
+	auto_close(
+		"guild_id",
+		"enabled",
+		"since_open_with_no_response",
+		"since_last_message",
+		"on_user_leave",
+		"warning_since_open_with_no_response",
+		"warning_since_last_message",
+		"warning_message"
+	)
 VALUES
-	($1, $2, $3, $4, $5)
+	($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT("guild_id") DO
 	UPDATE SET
 		"enabled" = $2,
 		"since_open_with_no_response" = $3,
 		"since_last_message" = $4,
-		"on_user_leave" = $5
+		"on_user_leave" = $5,
+		"warning_since_open_with_no_response" = $6,
+		"warning_since_last_message" = $7,
+		"warning_message" = $8
 ;`
 
-	_, err = a.Exec(ctx, query, guildId, settings.Enabled, settings.SinceOpenWithNoResponse, settings.SinceLastMessage, settings.OnUserLeave)
+	_, err = a.Exec(
+		ctx,
+		query,
+		guildId,
+		settings.Enabled,
+		settings.SinceOpenWithNoResponse,
+		settings.SinceLastMessage,
+		settings.OnUserLeave,
+		settings.WarningSinceOpenWithNoResponse,
+		settings.WarningSinceLastMessage,
+		settings.WarningMessage,
+	)
 	return
 }
 
 func (a *AutoCloseTable) Reset(ctx context.Context, guildId uint64) (err error) {
 	query := `
 UPDATE auto_close
-SET since_open_with_no_response = NULL, since_last_message = NULL
+SET
+	since_open_with_no_response = NULL,
+	since_last_message = NULL,
+	warning_since_open_with_no_response = NULL,
+	warning_since_last_message = NULL
 WHERE "guild_id" = $1;
 `
 

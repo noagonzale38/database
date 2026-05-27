@@ -25,6 +25,7 @@ func (d *Database) PurgeGuildData(ctx context.Context, guildId uint64, logger *z
 		// Ticket-related child tables (must be deleted before tickets)
 		"archive_messages",
 		"auto_close_exclude",
+		"auto_close_warnings",
 		"category_update_queue",
 		"close_reason",
 		"close_request",
